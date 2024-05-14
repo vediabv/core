@@ -279,7 +279,7 @@ class ConfigFlowResult(FlowResult, total=False):
 
     minor_version: int
     options: Mapping[str, Any]
-    subentries: Mapping[str, ConfigSubentryData]
+    subentries: Iterable[ConfigSubentryData]
     version: int
 
 
@@ -297,6 +297,7 @@ class ConfigSubentryData(TypedDict):
     """Container for configuration subentry data."""
 
     data: Mapping[str, Any]
+    subentry_id: str
     title: str
 
 
@@ -311,6 +312,7 @@ class ConfigSubentry:
     """Container for a configuration subentry."""
 
     data: MappingProxyType[str, Any]
+    subentry_id: str
     title: str
 
     def as_dict(self) -> dict[str, Any]:
@@ -374,7 +376,7 @@ class ConfigEntry(Generic[_DataT]):
         pref_disable_polling: bool | None = None,
         source: str,
         state: ConfigEntryState = ConfigEntryState.NOT_LOADED,
-        subentries: Mapping[str, ConfigSubentryData] | None,
+        subentries: Iterable[ConfigSubentryData] | None,
         title: str,
         unique_id: str | None,
         version: int,
@@ -403,10 +405,12 @@ class ConfigEntry(Generic[_DataT]):
         # Subentries
         subentries = subentries or {}
         _subentries = {
-            subentry_id: ConfigSubentry(
-                MappingProxyType(subentry["data"]), subentry["title"]
+            subentry["subentry_id"]: ConfigSubentry(
+                MappingProxyType(subentry["data"]),
+                subentry["subentry_id"],
+                subentry["title"],
             )
-            for subentry_id, subentry in subentries.items()
+            for subentry in subentries
         }
         _setter(self, "subentries", MappingProxyType(_subentries))
 
@@ -1028,10 +1032,7 @@ class ConfigEntry(Generic[_DataT]):
             "pref_disable_new_entities": self.pref_disable_new_entities,
             "pref_disable_polling": self.pref_disable_polling,
             "source": self.source,
-            "subentries": {
-                subentry_id: subentry.as_dict()
-                for subentry_id, subentry in self.subentries.items()
-            },
+            "subentries": [subentry.as_dict() for subentry in self.subentries.values()],
             "title": self.title,
             "unique_id": self.unique_id,
             "version": self.version,
@@ -2139,7 +2140,7 @@ class ConfigEntries:
         options: Mapping[str, Any] | UndefinedType = UNDEFINED,
         pref_disable_new_entities: bool | UndefinedType = UNDEFINED,
         pref_disable_polling: bool | UndefinedType = UNDEFINED,
-        subentries: Mapping[str, ConfigSubentry] | UndefinedType = UNDEFINED,
+        subentries: Iterable[ConfigSubentry] | UndefinedType = UNDEFINED,
         title: str | UndefinedType = UNDEFINED,
         unique_id: str | None | UndefinedType = UNDEFINED,
         version: int | UndefinedType = UNDEFINED,
@@ -2186,9 +2187,13 @@ class ConfigEntries:
             changed = True
             _setter(entry, "options", MappingProxyType(options))
 
-        if subentries is not UNDEFINED and entry.subentries != subentries:
-            changed = True
-            _setter(entry, "subentries", MappingProxyType(subentries))
+        if subentries is not UNDEFINED:
+            subentry_dict = MappingProxyType(
+                {subentry.subentry_id: subentry for subentry in subentries}
+            )
+            if entry.subentries != subentry_dict:
+                changed = True
+                _setter(entry, "subentries", subentry_dict)
 
         if not changed:
             return False
@@ -2763,7 +2768,7 @@ class ConfigFlow(ConfigEntryBaseFlow):
         description: str | None = None,
         description_placeholders: Mapping[str, str] | None = None,
         options: Mapping[str, Any] | None = None,
-        subentries: Mapping[str, ConfigSubentryData] | None = None,
+        subentries: Iterable[ConfigSubentryData] | None = None,
     ) -> ConfigFlowResult:
         """Finish config flow and create a config entry."""
         result = super().async_create_entry(
@@ -2775,7 +2780,7 @@ class ConfigFlow(ConfigEntryBaseFlow):
 
         result["minor_version"] = self.MINOR_VERSION
         result["options"] = options or {}
-        result["subentries"] = subentries or {}
+        result["subentries"] = subentries or ()
         result["version"] = self.VERSION
 
         return result
@@ -2869,12 +2874,12 @@ class ConfigSubentryFlowManager(
 
         self.hass.config_entries.async_update_entry(
             entry,
-            subentries=entry.subentries
-            | {
-                subentry_id: ConfigSubentry(
-                    MappingProxyType(result["data"]), result["title"]
-                )
-            },
+            subentries=[
+                *entry.subentries.values(),
+                ConfigSubentry(
+                    MappingProxyType(result["data"]), subentry_id, result["title"]
+                ),
+            ],
         )
 
         result["result"] = True
