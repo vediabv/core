@@ -390,7 +390,7 @@ def async_track_state_reported_event(
     hass: HomeAssistant,
     entity_ids: str | Iterable[str],
     action: Callable[[Event[EventStateReportedData]], Any],
-    job_type: HassJobType | None,
+    job_type: HassJobType | None = None,
 ) -> CALLBACK_TYPE:
     """Track EVENT_STATE_REPORTED by entity_id without lowercasing."""
     return _async_track_event(
