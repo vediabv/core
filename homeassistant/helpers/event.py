@@ -347,7 +347,7 @@ def _async_dispatch_entity_id_event(
 
 
 @callback
-def _async_state_change_filter(
+def _async_state_filter(
     hass: HomeAssistant,
     callbacks: dict[str, list[HassJob[[Event[_TypedDictT]], Any]]],
     event_data: _TypedDictT,
@@ -360,7 +360,7 @@ _KEYED_TRACK_STATE_CHANGE = _KeyedEventTracker(
     key=_TRACK_STATE_CHANGE_DATA,
     event_type=EVENT_STATE_CHANGED,
     dispatcher_callable=_async_dispatch_entity_id_event,
-    filter_callable=_async_state_change_filter,
+    filter_callable=_async_state_filter,
 )
 
 
@@ -381,7 +381,7 @@ _KEYED_TRACK_STATE_REPORTED = _KeyedEventTracker(
     key=_TRACK_STATE_REPORTED_DATA,
     event_type=EVENT_STATE_REPORTED,
     dispatcher_callable=_async_dispatch_entity_id_event,
-    filter_callable=_async_state_change_filter,
+    filter_callable=_async_state_filter,
 )
 
 
