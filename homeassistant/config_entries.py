@@ -8,7 +8,6 @@ from collections.abc import (
     Callable,
     Coroutine,
     Generator,
-    Hashable,
     Iterable,
     Mapping,
     ValuesView,
@@ -58,7 +57,6 @@ from .helpers.event import (
 from .helpers.frame import report
 from .helpers.json import json_bytes, json_fragment
 from .helpers.typing import UNDEFINED, ConfigType, DiscoveryInfoType, UndefinedType
-from .loader import async_suggest_report_issue
 from .setup import (
     DATA_SETUP_DONE,
     SetupPhases,
@@ -1514,9 +1512,18 @@ class ConfigEntryItems(UserDict[str, ConfigEntry]):
         """Return the underlying values to avoid __iter__ overhead."""
         return self.data.values()
 
+    def check_unique_id(self, entry_unique_id: str | None) -> None:
+        """Raise if unique id is not a string."""
+        if entry_unique_id is not None:
+            if not isinstance(entry_unique_id, str):
+                raise HomeAssistantError(
+                    f"The entry unique id {entry_unique_id!s} is not a string."
+                )
+
     def __setitem__(self, entry_id: str, entry: ConfigEntry) -> None:
         """Add an item."""
         data = self.data
+        self.check_unique_id(entry.unique_id)
         if entry_id in data:
             # This is likely a bug in a test that is adding the same entry twice.
             # In the future, once we have fixed the tests, this will raise HomeAssistantError.
@@ -1529,31 +1536,8 @@ class ConfigEntryItems(UserDict[str, ConfigEntry]):
         """Index an entry."""
         self._domain_index.setdefault(entry.domain, []).append(entry)
         if entry.unique_id is not None:
-            unique_id_hash = entry.unique_id
-            if not isinstance(entry.unique_id, str):
-                # Guard against integrations using unhashable unique_id
-                # In HA Core 2024.9, we should remove the guard and instead fail
-                if not isinstance(entry.unique_id, Hashable):  # type: ignore[unreachable]
-                    unique_id_hash = str(entry.unique_id)
-                # Checks for other non-string was added in HA Core 2024.10
-                # In HA Core 2025.10, we should remove the error and instead fail
-                report_issue = async_suggest_report_issue(
-                    self._hass, integration_domain=entry.domain
-                )
-                _LOGGER.error(
-                    (
-                        "Config entry '%s' from integration %s has an invalid unique_id"
-                        " '%s', please %s"
-                    ),
-                    entry.title,
-                    entry.domain,
-                    entry.unique_id,
-                    report_issue,
-                )
-
-            self._domain_unique_id_index.setdefault(entry.domain, {})[
-                unique_id_hash
-            ] = entry
+            unique_id = entry.unique_id
+            self._domain_unique_id_index.setdefault(entry.domain, {})[unique_id] = entry
 
     def _unindex_entry(self, entry_id: str) -> None:
         """Unindex an entry."""
@@ -1563,9 +1547,6 @@ class ConfigEntryItems(UserDict[str, ConfigEntry]):
         if not self._domain_index[domain]:
             del self._domain_index[domain]
         if (unique_id := entry.unique_id) is not None:
-            # Check type first to avoid expensive isinstance call
-            if type(unique_id) is not str and not isinstance(unique_id, Hashable):  # noqa: E721
-                unique_id = str(entry.unique_id)  # type: ignore[unreachable]
             del self._domain_unique_id_index[domain][unique_id]
             if not self._domain_unique_id_index[domain]:
                 del self._domain_unique_id_index[domain]
@@ -1580,6 +1561,7 @@ class ConfigEntryItems(UserDict[str, ConfigEntry]):
 
         This method mutates the entry with the new unique id and updates the indexes.
         """
+        self.check_unique_id(new_unique_id)
         entry_id = entry.entry_id
         self._unindex_entry(entry_id)
         object.__setattr__(entry, "unique_id", new_unique_id)
@@ -1594,9 +1576,7 @@ class ConfigEntryItems(UserDict[str, ConfigEntry]):
         self, domain: str, unique_id: str
     ) -> ConfigEntry | None:
         """Get entry by domain and unique id."""
-        # Check type first to avoid expensive isinstance call
-        if type(unique_id) is not str and not isinstance(unique_id, Hashable):  # noqa: E721
-            unique_id = str(unique_id)  # type: ignore[unreachable]
+        self.check_unique_id(unique_id)
         return self._domain_unique_id_index.get(domain, {}).get(unique_id)
 
 
