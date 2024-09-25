@@ -50,6 +50,12 @@ INCLUDED_REQUIREMENTS_WHEELS = {
     "pyuserinput",
 }
 
+# Pandas has issues building on armhf, it is expected they
+# will drop the platform in the near future (they consider it
+# "flimsy" on 386). The following packages depend on pandas,
+# so we comment them out.
+EXCLUDED_REQUIREMENTS_PANDAS = {"env-canada", "noaa-coops", "pyezviz", "pykrakenapi"}
+
 
 # Requirements to exclude or include when running github actions.
 # Requirements listed in "exclude" will be commented-out in
@@ -60,17 +66,19 @@ INCLUDED_REQUIREMENTS_WHEELS = {
 OVERRIDDEN_REQUIREMENTS_ACTIONS = {
     "pytest": {"exclude": set(), "include": {"python-gammu"}},
     "wheels_aarch64": {"exclude": set(), "include": INCLUDED_REQUIREMENTS_WHEELS},
-    # Pandas has issues building on armhf, it is expected they
-    # will drop the platform in the near future (they consider it
-    # "flimsy" on 386). The following packages depend on pandas,
-    # so we comment them out.
     "wheels_armhf": {
-        "exclude": {"env-canada", "noaa-coops", "pyezviz", "pykrakenapi"},
+        "exclude": EXCLUDED_REQUIREMENTS_PANDAS,
         "include": INCLUDED_REQUIREMENTS_WHEELS,
     },
-    "wheels_armv7": {"exclude": set(), "include": INCLUDED_REQUIREMENTS_WHEELS},
+    "wheels_armv7": {
+        "exclude": EXCLUDED_REQUIREMENTS_PANDAS,
+        "include": INCLUDED_REQUIREMENTS_WHEELS,
+    },
     "wheels_amd64": {"exclude": set(), "include": INCLUDED_REQUIREMENTS_WHEELS},
-    "wheels_i386": {"exclude": set(), "include": INCLUDED_REQUIREMENTS_WHEELS},
+    "wheels_i386": {
+        "exclude": EXCLUDED_REQUIREMENTS_PANDAS,
+        "include": INCLUDED_REQUIREMENTS_WHEELS,
+    },
 }
 
 IGNORE_PIN = ("colorlog>2.1,<3", "urllib3")
